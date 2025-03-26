@@ -19,38 +19,25 @@ jobs:
     - name: preZero Static Analysis
       run: |
         pip install -r requirements.txt
-
-        ${GITHUB_WORKSPACE}/sl --version
-        ${GITHUB_WORKSPACE}/sl analyze --strict --wait \
-          --app shiftleft-python-demo \
-          --tag branch=${{ github.head_ref }} \
-          --pythonsrc --container 18fgsa/s3-resource $(pwd)
+        ./sl analyze --verbose --strict --wait
       env:
         SHIFTLEFT_ACCESS_TOKEN: ${{ secrets.SHIFTLEFT_ACCESS_TOKEN }}
         SHIFTLEFT_API_HOST: www.shiftleft.io
         SHIFTLEFT_GRPC_TELEMETRY_HOST: telemetry.shiftleft.io:443
         SHIFTLEFT_GRPC_API_HOST: api.shiftleft.io:443
-
-  Build-Rules:
-    runs-on: ubuntu-latest
-    permissions: write-all
-    needs: NextGen-Static-Analysis
-    steps:
-    - uses: actions/checkout@v3
-    - name: Download ShiftLeft CLI
+        
+    - name: Export Sarif Report qwiet ai
+      shell: bash
       run: |
-        curl https://cdn.shiftleft.io/download/sl > ${GITHUB_WORKSPACE}/sl && chmod a+rx ${GITHUB_WORKSPACE}/sl
-    - name: Validate Build Rules
-      run: |
-        ${GITHUB_WORKSPACE}/sl check-analysis --app shiftleft-python-demo \
-            --github-pr-number=${{github.event.number}} \
-            --github-pr-user=${{ github.repository_owner }} \
-            --github-pr-repo=${{ github.event.repository.name }} \
-            --github-token=${{ secrets.GITHUB_TOKEN }}
+        git clone --branch sandeep/sarif-poc --single-branch https://github.com/ShiftLeftSecurity/field-integrations report
+        pip3 install -r report/shiftleft-utils/requirements.txt
+        python3 report/shiftleft-utils/export.py --app "shiftleft-python-demo" --format "sarif" --report_file report/qwiet-sarif-report.sarif
+        chmod -R 777 report
       env:
         SHIFTLEFT_ACCESS_TOKEN: ${{ secrets.SHIFTLEFT_ACCESS_TOKEN }}
-        SHIFTLEFT_API_HOST: www.shiftleft.io
-        SHIFTLEFT_GRPC_TELEMETRY_HOST: telemetry.shiftleft.io:443
-        SHIFTLEFT_GRPC_API_HOST: api.shiftleft.io:443
 
-
+    - name: Upload result to GitHub Code Scanning
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: report/qwiet-sarif-report-shiftleft-python-demo.sarif
+        category: qwiet-prezero
