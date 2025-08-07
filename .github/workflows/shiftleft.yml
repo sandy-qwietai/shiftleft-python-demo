@@ -12,45 +12,69 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - name: Download ShiftLeft CLI
-      run: |
-        curl https://cdn.shiftleft.io/download/sl > ${GITHUB_WORKSPACE}/sl && chmod a+rx ${GITHUB_WORKSPACE}/sl
+    # - name: Download ShiftLeft CLI
+    #   run: |
+    #     tar -xvf sl-latest-linux-x64.tar.gz && chmod a+rx sl
 
-    - name: preZero Static Analysis
-      run: |
-        pip install -r requirements.txt
+    # - name: Print GitHub Environment Variables
+    #   shell: bash
+    #   run: |
+    #     echo "GITHUB_REPOSITORY: $GITHUB_REPOSITORY"
+    #     echo "GITHUB_SHA: $GITHUB_SHA"
+    #     echo "GITHUB_REF: $GITHUB_REF"
+    #     echo "GITHUB_ACTOR: $GITHUB_ACTOR"
 
-        ${GITHUB_WORKSPACE}/sl --version
-        ${GITHUB_WORKSPACE}/sl analyze --strict --wait \
-          --app shiftleft-python-demo \
-          --tag branch=${{ github.head_ref }} \
-          --pythonsrc --container 18fgsa/s3-resource $(pwd)
-      env:
-        SHIFTLEFT_ACCESS_TOKEN: ${{ secrets.SHIFTLEFT_ACCESS_TOKEN }}
-        SHIFTLEFT_API_HOST: www.shiftleft.io
-        SHIFTLEFT_GRPC_TELEMETRY_HOST: telemetry.shiftleft.io:443
-        SHIFTLEFT_GRPC_API_HOST: api.shiftleft.io:443
+    # - name: Setup Node.js
+    #   uses: actions/setup-node@v4
+    #   with:
+    #     node-version: '20'
 
-  Build-Rules:
-    runs-on: ubuntu-latest
-    permissions: write-all
-    needs: NextGen-Static-Analysis
-    steps:
-    - uses: actions/checkout@v3
-    - name: Download ShiftLeft CLI
-      run: |
-        curl https://cdn.shiftleft.io/download/sl > ${GITHUB_WORKSPACE}/sl && chmod a+rx ${GITHUB_WORKSPACE}/sl
-    - name: Validate Build Rules
-      run: |
-        ${GITHUB_WORKSPACE}/sl check-analysis --app shiftleft-python-demo \
-            --github-pr-number=${{github.event.number}} \
-            --github-pr-user=${{ github.repository_owner }} \
-            --github-pr-repo=${{ github.event.repository.name }} \
-            --github-token=${{ secrets.GITHUB_TOKEN }}
-      env:
-        SHIFTLEFT_ACCESS_TOKEN: ${{ secrets.SHIFTLEFT_ACCESS_TOKEN }}
-        SHIFTLEFT_API_HOST: www.shiftleft.io
-        SHIFTLEFT_GRPC_TELEMETRY_HOST: telemetry.shiftleft.io:443
-        SHIFTLEFT_GRPC_API_HOST: api.shiftleft.io:443
+    # - name: Install Node.js dependencies
+    #   run: npm install
 
+    # - name: preZero Static Analysis
+    #   run: |
+    #     ./sl analyze --verbose --strict --wait
+    #   env:
+    #     SHIFTLEFT_ACCESS_TOKEN: ${{ secrets.SHIFTLEFT_ACCESS_TOKEN }}
+    #     SHIFTLEFT_API_HOST: www.shiftleft.io
+    #     SHIFTLEFT_GRPC_TELEMETRY_HOST: telemetry.shiftleft.io:443
+    #     SHIFTLEFT_GRPC_API_HOST: api.shiftleft.io:443
 
+    # - name: Export Sarif Report qwiet ai
+    #   shell: bash
+    #   run: |
+    #     ./sl sarif export --app shiftleft-js-demo
+    #   env:
+    #     SHIFTLEFT_ACCESS_TOKEN: ${{ secrets.SHIFTLEFT_ACCESS_TOKEN }}
+
+    - name: Upload result to GitHub Code Scanning
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: formatted5.sarif
+        category: qwiet-prezero
+    # - name: Upload SARIF via GitHub REST API
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #     REPO: ${{ github.repository }}
+    #     COMMIT_SHA: ${{ github.sha }}
+    #     BRANCH: ${{ github.ref }}
+    #   run: |
+    #     SARIF_FILE="formatted4.sarif"
+    #     BASE64_SARIF=$(gzip -c "$SARIF_FILE" | base64 -w0)
+    #     PAYLOAD=$(jq -n \
+    #     --arg commit_sha "$COMMIT_SHA" \
+    #     --arg ref "$BRANCH" \
+    #     --arg sarif "$BASE64_SARIF" \
+    #     '{commit_sha: $commit_sha, ref: $ref, sarif: $sarif}')
+    #     curl -X POST \
+    #       -H "Authorization: token $GITHUB_TOKEN" \
+    #       -H "Accept: application/vnd.github+json" \
+    #       https://api.github.com/repos/$REPO/code-scanning/sarifs \
+    #       -d "$PAYLOAD"
+
+    - name: Upload report file
+      uses: actions/upload-artifact@v4
+      with:
+        name: sarif-report
+        path: formatted5.sarif
